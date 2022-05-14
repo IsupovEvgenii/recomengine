@@ -106,16 +106,24 @@ func (e *Engine) ComputeModel() error {
 
 	// user-item
 	var ui [][]float64
+	max := 0.0
 	for _, u := range e.userOrders {
 		cur := make([]float64, len(e.products))
 		for _, o := range u.Orders {
 			for _, i := range o.Products {
-				if cur[e.mapVectorProducts[i.ID]] == 0 {
-					cur[e.mapVectorProducts[i.ID]]++
+				cur[e.mapVectorProducts[i.ID]]++
+				if cur[e.mapVectorProducts[i.ID]] > max {
+					max = cur[e.mapVectorProducts[i.ID]]
 				}
 			}
 		}
 		ui = append(ui, cur)
+	}
+	// normalize
+	for i := 0; i < len(ui); i++ {
+		for j := 0; j < len(ui[i]); j++ {
+			ui[i][j] /= max
+		}
 	}
 
 	// item-item
@@ -124,17 +132,25 @@ func (e *Engine) ComputeModel() error {
 		cur := make([]float64, len(e.products))
 		ii = append(ii, cur)
 	}
+	max = 0.0
 	for _, u := range e.userOrders {
 		for _, o := range u.Orders {
 			for i := 0; i < len(o.Products)-1; i++ {
 				if i+1 < len(o.Products) {
 					for j := i + 1; j < len(o.Products); j++ {
-						if ii[e.mapVectorProducts[o.Products[i].ID]][e.mapVectorProducts[o.Products[j].ID]] == 0 {
-							ii[e.mapVectorProducts[o.Products[i].ID]][e.mapVectorProducts[o.Products[j].ID]]++
+						ii[e.mapVectorProducts[o.Products[i].ID]][e.mapVectorProducts[o.Products[j].ID]]++
+						if ii[e.mapVectorProducts[o.Products[i].ID]][e.mapVectorProducts[o.Products[j].ID]] > max {
+							max = ii[e.mapVectorProducts[o.Products[i].ID]][e.mapVectorProducts[o.Products[j].ID]]
 						}
 					}
 				}
 			}
+		}
+	}
+	// normalize
+	for i := 0; i < len(ii); i++ {
+		for j := 0; j < len(ii[i]); j++ {
+			ii[i][j] /= max
 		}
 	}
 	var uiArray []float64
