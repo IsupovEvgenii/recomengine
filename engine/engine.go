@@ -23,10 +23,35 @@ func InitEngine(
 	products []Product,
 	userOrders []UserOrders,
 	dParam int64,
+	minUserOrders int64,
+	minPopularScoreProduct int64,
 ) *Engine {
+	popularScoreProducts := make(map[string]int64)
+	for _, userOrder := range userOrders {
+		for _, order := range userOrder.Orders {
+			for _, product := range order.Products {
+				popularScoreProducts[product.ID]++
+			}
+		}
+	}
+	var newProducts []Product
+	for _, product := range products {
+		if score, ok := popularScoreProducts[product.ID]; ok && score > minPopularScoreProduct {
+			newProducts = append(newProducts, product)
+		}
+	}
+	fmt.Println(len(newProducts))
+
+	var newUserOrders []UserOrders
+	for _, userOrder := range userOrders {
+		if len(userOrder.Orders) > int(minUserOrders) {
+			newUserOrders = append(newUserOrders, userOrder)
+		}
+	}
+	fmt.Println(len(newUserOrders))
 	return &Engine{
-		products:   products,
-		userOrders: userOrders,
+		products:   newProducts,
+		userOrders: newUserOrders,
 		dParam:     dParam,
 	}
 }
@@ -40,7 +65,9 @@ func (e *Engine) GetRecomProducts(userID string, productIDs []string) []string {
 	vecProducts := make([][]float64, 0, len(productIDs))
 	for _, productID := range productIDs {
 		var cur []float64
-		vecProducts = append(vecProducts, mat.Row(cur, e.mapVectorProducts[productID], e.I2))
+		if _, ok := e.mapVectorProducts[productID]; ok {
+			vecProducts = append(vecProducts, mat.Row(cur, e.mapVectorProducts[productID], e.I2))
+		}
 	}
 
 	var actual []float64
@@ -83,8 +110,8 @@ func (e *Engine) GetRecomProducts(userID string, productIDs []string) []string {
 	})
 
 	var super []string
-	if len(resultishe) > 30 {
-		for i := 0; i < 30; i++ {
+	if len(resultishe) > 10 {
+		for i := 0; i < 10; i++ {
 			super = append(super, resultishe[i].ProductID)
 		}
 	}
@@ -101,7 +128,7 @@ func (e *Engine) ComputeModel() error {
 	}
 	e.mapVectorUsers = make(map[string]int)
 	for i, user := range e.userOrders {
-		e.mapVectorProducts[user.UserID] = i
+		e.mapVectorUsers[user.UserID] = i
 	}
 
 	// user-item
@@ -111,9 +138,11 @@ func (e *Engine) ComputeModel() error {
 		cur := make([]float64, len(e.products))
 		for _, o := range u.Orders {
 			for _, i := range o.Products {
-				cur[e.mapVectorProducts[i.ID]]++
-				if cur[e.mapVectorProducts[i.ID]] > max {
-					max = cur[e.mapVectorProducts[i.ID]]
+				if _, ok := e.mapVectorProducts[i.ID]; ok {
+					cur[e.mapVectorProducts[i.ID]]++
+					if cur[e.mapVectorProducts[i.ID]] > max {
+						max = cur[e.mapVectorProducts[i.ID]]
+					}
 				}
 			}
 		}
@@ -138,10 +167,16 @@ func (e *Engine) ComputeModel() error {
 			for i := 0; i < len(o.Products)-1; i++ {
 				if i+1 < len(o.Products) {
 					for j := i + 1; j < len(o.Products); j++ {
-						ii[e.mapVectorProducts[o.Products[i].ID]][e.mapVectorProducts[o.Products[j].ID]]++
-						if ii[e.mapVectorProducts[o.Products[i].ID]][e.mapVectorProducts[o.Products[j].ID]] > max {
-							max = ii[e.mapVectorProducts[o.Products[i].ID]][e.mapVectorProducts[o.Products[j].ID]]
+						if _, ok := e.mapVectorProducts[o.Products[i].ID]; ok {
+							if _, ok := e.mapVectorProducts[o.Products[j].ID]; ok {
+								ii[e.mapVectorProducts[o.Products[i].ID]][e.mapVectorProducts[o.Products[j].ID]]++
+								if ii[e.mapVectorProducts[o.Products[i].ID]][e.mapVectorProducts[o.Products[j].ID]] > max {
+									max = ii[e.mapVectorProducts[o.Products[i].ID]][e.mapVectorProducts[o.Products[j].ID]]
+								}
+							}
+
 						}
+
 					}
 				}
 			}
