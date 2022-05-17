@@ -36,19 +36,17 @@ func InitEngine(
 	}
 	var newProducts []Product
 	for _, product := range products {
-		if score, ok := popularScoreProducts[product.ID]; ok && score > minPopularScoreProduct {
+		if score, ok := popularScoreProducts[product.ID]; ok && score >= minPopularScoreProduct {
 			newProducts = append(newProducts, product)
 		}
 	}
-	fmt.Println(len(newProducts))
 
 	var newUserOrders []UserOrders
 	for _, userOrder := range userOrders {
-		if len(userOrder.Orders) > int(minUserOrders) {
+		if len(userOrder.Orders) >= int(minUserOrders) {
 			newUserOrders = append(newUserOrders, userOrder)
 		}
 	}
-	fmt.Println(len(newUserOrders))
 	return &Engine{
 		products:   newProducts,
 		userOrders: newUserOrders,
@@ -105,14 +103,32 @@ func (e *Engine) GetRecomProducts(userID string, productIDs []string) []string {
 
 	}
 
-	sort.Slice(resultishe, func(i, j int) bool {
-		return resultishe[i].Score > resultishe[j].Score
+	var newResultishe []ProductScore
+	for _, re := range resultishe {
+		isExist := false
+		for _, productID := range productIDs {
+			if productID == re.ProductID {
+				isExist = true
+			}
+		}
+		var cur1 []float64
+		if _, ok := e.mapVectorProducts[re.ProductID]; ok {
+			mat.Row(cur1, e.mapVectorProducts[re.ProductID], e.I2)
+		}
+		if !isExist {
+			newResultishe = append(newResultishe, re)
+		}
+
+	}
+
+	sort.Slice(newResultishe, func(i, j int) bool {
+		return newResultishe[i].Score > newResultishe[j].Score
 	})
 
 	var super []string
-	if len(resultishe) > 10 {
+	if len(newResultishe) > 10 {
 		for i := 0; i < 10; i++ {
-			super = append(super, resultishe[i].ProductID)
+			super = append(super, newResultishe[i].ProductID)
 		}
 	}
 
@@ -139,7 +155,7 @@ func (e *Engine) ComputeModel() error {
 		for _, o := range u.Orders {
 			for _, i := range o.Products {
 				if _, ok := e.mapVectorProducts[i.ID]; ok {
-					cur[e.mapVectorProducts[i.ID]]++
+					cur[e.mapVectorProducts[i.ID]] += float64(i.Count)
 					if cur[e.mapVectorProducts[i.ID]] > max {
 						max = cur[e.mapVectorProducts[i.ID]]
 					}
