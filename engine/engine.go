@@ -8,15 +8,16 @@ import (
 )
 
 type Engine struct {
-	products          []Product
-	userOrders        []UserOrders
-	dParam            int64
-	U1                mat.Matrix
-	I1                mat.Matrix
-	I2                mat.Matrix
-	mapVectorProducts map[string]int
-	mapProductVector  map[int]string
-	mapVectorUsers    map[string]int
+	products             []Product
+	userOrders           []UserOrders
+	mapProductCategories map[string]string
+	dParam               int64
+	U1                   mat.Matrix
+	I1                   mat.Matrix
+	I2                   mat.Matrix
+	mapVectorProducts    map[string]int
+	mapProductVector     map[int]string
+	mapVectorUsers       map[string]int
 }
 
 func InitEngine(
@@ -35,9 +36,11 @@ func InitEngine(
 		}
 	}
 	var newProducts []Product
+	mapProductCategories := make(map[string]string)
 	for _, product := range products {
 		if score, ok := popularScoreProducts[product.ID]; ok && score >= minPopularScoreProduct {
 			newProducts = append(newProducts, product)
+			mapProductCategories[product.ID] = product.CategoryID
 		}
 	}
 
@@ -47,18 +50,21 @@ func InitEngine(
 			newUserOrders = append(newUserOrders, userOrder)
 		}
 	}
+
 	return &Engine{
-		products:   newProducts,
-		userOrders: newUserOrders,
-		dParam:     dParam,
+		products:             newProducts,
+		userOrders:           newUserOrders,
+		dParam:               dParam,
+		mapProductCategories: mapProductCategories,
 	}
 }
 
 func (e *Engine) GetRecomProducts(userID string, productIDs []string) []string {
 	var vecUser []float64
 	if _, ok := e.mapVectorUsers[userID]; ok {
-		mat.Row(vecUser, e.mapVectorUsers[userID], e.U1)
+		vecUser = mat.Row(vecUser, e.mapVectorUsers[userID], e.U1)
 	}
+	//fmt.Println(e.U1)
 
 	vecProducts := make([][]float64, 0, len(productIDs))
 	for _, productID := range productIDs {
@@ -70,8 +76,9 @@ func (e *Engine) GetRecomProducts(userID string, productIDs []string) []string {
 
 	var actual []float64
 	E := mat.NewVecDense(int(e.dParam), actual)
+	//fmt.Println(vecUser)
 	if len(vecUser) > 0 {
-		E.ScaleVec(0.5, mat.NewVecDense(len(vecUser), vecUser))
+		E.ScaleVec(0.1, mat.NewVecDense(len(vecUser), vecUser))
 	}
 	var actual2 []float64
 	E2 := mat.NewVecDense(int(e.dParam), actual2)
@@ -81,6 +88,7 @@ func (e *Engine) GetRecomProducts(userID string, productIDs []string) []string {
 		}
 		E2.ScaleVec(1.0/float64(len(vecProducts)), E2)
 	}
+	E2.ScaleVec(0.5, E2)
 
 	E.AddVec(E, E2)
 
@@ -111,10 +119,6 @@ func (e *Engine) GetRecomProducts(userID string, productIDs []string) []string {
 				isExist = true
 			}
 		}
-		var cur1 []float64
-		if _, ok := e.mapVectorProducts[re.ProductID]; ok {
-			mat.Row(cur1, e.mapVectorProducts[re.ProductID], e.I2)
-		}
 		if !isExist {
 			newResultishe = append(newResultishe, re)
 		}
@@ -125,10 +129,54 @@ func (e *Engine) GetRecomProducts(userID string, productIDs []string) []string {
 		return newResultishe[i].Score > newResultishe[j].Score
 	})
 
+	//var newNewResultishe []ProductScore
+	//for _, re := range newResultishe {
+	//	isSimCategory := false
+	//	for _, productID := range productIDs {
+	//		if e.mapProductCategories[re.ProductID] == e.mapProductCategories[productID] {
+	//			isSimCategory = true
+	//		}
+	//	}
+	//
+	//	if !isSimCategory {
+	//		newNewResultishe = append(newNewResultishe, re)
+	//	}
+	//
+	//}
+
 	var super []string
-	if len(newResultishe) > 10 {
-		for i := 0; i < 10; i++ {
+	lenArray := 0
+	i := 0
+	//j := 0
+	for lenArray < 20 {
+		if len(super) == 0 {
 			super = append(super, newResultishe[i].ProductID)
+			lenArray++
+		}
+		//isExistJ := false
+		//for _, sup := range super {
+		//	if newNewResultishe[j].ProductID == sup {
+		//		j++
+		//		isExistJ = true
+		//		break
+		//	}
+		//}
+		isExistI := false
+		for _, sup := range super {
+			if newResultishe[i].ProductID == sup {
+				i++
+				isExistI = true
+				break
+			}
+		}
+
+		//if !isExistJ {
+		//	super = append(super, newNewResultishe[j].ProductID)
+		//	lenArray++
+		//}
+		if !isExistI {
+			super = append(super, newResultishe[i].ProductID)
+			lenArray++
 		}
 	}
 

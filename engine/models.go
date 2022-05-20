@@ -14,7 +14,8 @@ type (
 	}
 
 	Product struct {
-		ID    string
-		Count int64
+		ID         string
+		Count      int64
+		CategoryID string
 	}
 )
